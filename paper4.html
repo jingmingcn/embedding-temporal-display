@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style type="text/css">
+	html body{
+		margin: 0;
+		padding: 0;
+		cursor: pointer;
+	}
+	.node {
+		fill: red;
+		fill-opacity:0.5;
+		stroke: white;
+		stroke-opacity:0.8;
+	}
+	.link {
+		stroke-width:2px;
+		stroke: #33A02C;
+		fill: none;
+	}
+	#toolbar{
+		position: absolute;
+		left: 0px;
+		top: 0px;
+		z-index: 999;
+		color: #666;
+		font-size: 10px;
+	}
+	.area, .area2{
+	   fill-opacity:0.5;
+	   stroke: #fff;
+	   stroke-width:1px;
+	}
+	svg{
+		position: absolute;
+		left: 0px;
+		top: 0px;
+	}
+
+	fieldset {
+	    font-family: sans-serif;
+	    border: 2px solid #eee;
+	    background: #fff;
+	    border-radius: 2px;
+	    padding: 5px;
+	    margin: 5px 2px;
+	    opacity:0.9;
+	}
+
+	fieldset legend {
+	    background: #eee;
+	    color: #666;
+	    padding: 5px 10px ;
+	    font-size: 8px;
+	    border-radius: 5px;
+	    box-shadow: 0 0 0 2px #eee;
+	    margin-left: 5px;
+	}
+
+	fieldset label{
+		display: inline-block;
+		width: 140px;
+		text-align: right;
+	}
+</style>
+<div id="toolbar">
+	<fieldset>
+		<legend><b>Layout Preferences</b></legend>
+		<p>
+		  <label for="nodeRadius">
+		         Node Radius :
+		  </label>
+		  <input type="number" min="0" max="100" step="1" value="10" id="nodeRadius">
+		</p>
+		<!--
+		<p>
+			<label>
+				Node Featured :
+			</label>
+			<input type="radio" name="nodeFeatured" value="On" id="nodeFeaturedOn">On
+			<input type="radio" name="nodeFeatured" value="Off" id="nodeFeaturedOff" checked>Off
+		</p>
+		-->
+		<p>
+		  <label for="nodeEdge">
+		         Node Edge :
+		  </label>
+		  <input type="number" min="0" max="100" step="1" value="2" id="nodeEdge">
+		</p>
+		<p>
+		  <label for="linkDistance">
+		         Link Distance :
+		  </label>
+		  <input type="number" min="0" max="200" step="10" value="100" id="linkDistance">
+		</p>
+		<p>
+		  <label for="linkDistance">
+		         Many Body Strength :
+		  </label>
+		  <input type="number" min="-100" max="100" step="10" value="-30" id="manyBodyStrength">
+		</p>
+	</fieldset>
+	<fieldset>
+		<legend><b>Temporal Display Preferences</b></legend>
+		<p>
+			<label for="embedType">
+				   	Embed Temporal Display :
+			</label>
+			<input type="radio" name="embedType" checked="">
+		</p>
+	</fieldset>
+</div>
+<script src="/js/jquery-3.1.1.min.js" charset="utf-8" ></script>
+<script src="/js/d3.v4.2.8.min.js" charset="utf-8" ></script>
+<script src="/js/d3-scale-chromatic.v1.min.js" charset="utf-8" ></script>
+<script type="text/javascript">
+	var default_radius = 10;
+	var default_edge = 2;
+	var default_link_distance = 100;
+	$(function(){
+
+		console.log(document.implementation.hasFeature("http://www.w3.org/TR/SVG2/feature#GraphicsAttribute", 2.0));
+
+		var width = $(window).width();
+		var height = $(window).height();
+		var seq_max = 10;
+		var seq_length = 10;
+
+		$('#nodeRadius').val(default_radius);
+		$('#nodeEdge').val(default_edge);
+		$('#linkDistance').val(default_link_distance);
+
+		var radius = $('#nodeRadius').val();
+		var edge = $('#nodeEdge').val();
+		var linkDistance = $('#linkDistance').val();
+		var manyBodyStrength = $('#manyBodyStrength').val();
+
+		var svg = d3.select("body").append("svg").attr("width",width).attr("height",height);
+		var defs = svg.append("svg:defs");
+		var marker = defs.append("svg:marker")
+				.attr('id','arrow')
+				.attr('viewBox','0 -5 10 10')
+				.attr('refX',5)
+				.attr('refY',0)
+				.attr("markerWidth",4)
+				.attr("markerHeight",4)
+				.attr('orient',"auto")
+				.append("svg:path")
+					.attr("d", "M0,-5L10,0L0,5")
+					.attr("class","arrowHead");
+		
+		var nodes;
+		var labels;
+		var links;
+		var circleCenters;
+		var json;
+		var path,path2;
+		var paths;
+		var area_x_scale;
+		var area,area2;
+		var simulation = d3.forceSimulation();
+		var forceLink = d3.forceLink();
+		forceLink.distance(function(d){
+			return linkDistance;
+		});
+		var forceCenter = d3.forceCenter(width/2,height/2);
+		var forceManyBody = d3.forceManyBody(manyBodyStrength);
+
+		var x = d3.scaleBand().rangeRound([0, linkDistance-radius*2]).padding(0.1),
+    		y = d3.scaleLinear().rangeRound([10, 0]);
+		x.domain([0,1,2,3,4,5,6,7,8,9]);
+		y.domain([0,10]);
+
+		var color = d3.scaleOrdinal(d3.schemeGreens);
+		color.domain([1,2,3,4,5,6,7,8,9,10]);
+
+		var innerLinePostion = function(d){
+			var x1 = d.source.x,
+				y1 = d.source.y,
+				x2 = d.target.x,
+				y2 = d.target.y,
+				l  = Math.sqrt(Math.pow(y2-y1,2)+Math.pow(x2-x1,2));
+				l_  = radius/1 + edge/1;
+			var x1_ = x1 + l_*(x2-x1)/l,
+				y1_ = y1 + l_*(y2-y1)/l,
+				x2_ = x2 + l_*(x1-x2)/l,
+				y2_ = y2 + l_*(y1-y2)/l;
+			return [x1_,y1_,x2_,y2_];
+		};
+
+		var ticked = function(){
+			
+				nodes.attr("cx", function(d) { return d.x; })
+    				.attr("cy", function(d) { return d.y; });
+    			labels.attr('dx',function(d){return d.x-5;}).attr('dy',function(d){return d.y+6;})
+				
+				links.each(function(d){
+					d.center = circleCenter(d.source.x,d.source.y,d.target.x,d.target.y,60);
+				});
+
+			    links.attr("d", function(d) {
+			    	var x1 = innerLinePostion(d)[0],
+			    		y1 = innerLinePostion(d)[1],
+			    		x2 = innerLinePostion(d)[2],
+			    		y2 = innerLinePostion(d)[3];
+				    var dx = d.target.x - d.source.x,
+				        dy = d.target.y - d.source.y,
+				        dr = Math.sqrt(dx * dx + dy * dy);
+				    		    
+				    return "M" + x1 + "," + y1 + "A" + dr + "," + dr + " 0 0,1 " + x2 + "," + y2;
+				  })
+			        .attr("marker-end","url(#arrow)");
+
+			    circleCenters.attr('cx',function(d){return d.center.x;})
+			    	.attr('cy',function(d){return d.center.y});
+			    
+
+			    // path.attr("transform",function(d,i){
+			    //   var source = d.source;
+			    //   var target = d.target;
+
+			    //   var radians = Math.atan2(-(target.y-source.y),(target.x-source.x));
+			    //   var degrees = radians * 180/Math.PI; 
+			      
+			    //   return 'translate('+source.x+','+source.y+') rotate('+-degrees+') translate('+(radius/1+edge/1)+','+(-seq_max-2)+')';
+			    // });
+
+			    path.each(function(d,i){
+			    	var dx = d.target.x - d.source.x,
+				        dy = d.target.y - d.source.y,
+				        dr = Math.sqrt(dx * dx + dy * dy);
+				    var source = d.source;
+			      	var target = d.target;
+			      	var center = d.center;
+
+			      	var radians = Math.atan2(-(source.y-center.y),(source.x-center.x));
+			      	var degrees = radians * 180/Math.PI;
+			    	d3.select(this).selectAll('.rect').each(function(s,i){
+			    		d3.select(this).attr('x',center.x).attr('y',center.y)
+			    			.attr('transform',function(){
+				    			degree = -degrees+90+5*(i+1);
+
+				    			return 'rotate('+degree+' '+center.x+' '+center.y+') translate(0,'+-(dr+7)+')';
+				    		});
+			    	});
+			    });
+
+			
+		};
+
+		d3.json("link4type.json",function(error,data){
+			if(error) throw error;
+			json = data;
+			$.each(data.nodes,function(index_node,item_node){
+				item_node.size = 0;
+				$.each(data.links,function(index_link,item_link){
+					if(item_link.source === index_node){
+						$.each(item_link.seq,function(index,item){
+							item_node.size+= item/1;
+						});
+					}
+				});
+			});
+			nodes = svg.selectAll(".node").data(data.nodes).enter().append("circle","svg").attr("class","node").attr("r",radius).style('stroke-width',edge/1)
+				.on('mouseover',function(d,i){
+					d3.select(this).style('stroke',"blue");
+				}).on('mouseout',function(d,i){
+					d3.select(this).style('stroke',"white");
+				})
+
+			
+			links = svg.selectAll(".link").data(data.links).enter().insert("path").attr("class","link");
+  			circleCenters = svg.selectAll('.circleCenter').data(data.links).enter().insert('circle').attr('class','circleCenter').attr('r',0).style('stroke-width','0px');
+
+			simulation.nodes(data.nodes);
+			simulation.force("charge", forceManyBody)
+					  .force("link",forceLink)
+					  .force("center", forceCenter);
+			forceLink.links(data.links);
+
+/*
+			path = svg.selectAll(".area").data(data.links).enter().append('g')
+					       .attr("class","area")
+			.each(function(d,i){
+				d3.select(this).selectAll('.rect').data(d.seq).enter().insert('rect').attr('class','rect')
+					.attr('x',function(d,i){return x(i);})
+					.attr('y',function(d,i){return 5;})
+					.attr("width", x.bandwidth())
+					.attr("height", function(d) { return 5; })
+					.attr('fill',function(d,i){return d3.interpolateGreens(d/10);});
+			});
+			*/
+
+			labels = svg.selectAll('.label').data(data.nodes).enter().append('text').text(function(d,i){return d.id;}).style('z-index',1);
+
+			simulation.on("tick",ticked);
+		});
+
+		$(window).resize(function(){
+			width = $(window).width();
+			height = $(window).height();
+			svg.attr("width",width).attr("height",height);
+			forceCenter.x(width/2);
+			forceCenter.y(height/2);
+			simulation.restart();
+		});
+
+		$('#nodeRadius').change(function(){
+			radius = $('#nodeRadius').val();
+			nodes.transition().attr('r',radius);
+
+			d3.selectAll('.path').remove();
+			area_x_scale = d3.scaleLinear().range([0,linkDistance-radius*2-edge*2]).domain([0,seq_length-1]);
+			area = d3.area().x(function(d,i){return area_x_scale(i);}).y0(seq_max).y1(function(d,i){return d;});
+			path.insert("path").attr('class','path').datum(function(d){return d.seq;}).attr("d",area);
+
+			ticked();
+		});
+
+		$('#nodeEdge').change(function(){
+			edge = $('#nodeEdge').val();
+			nodes.transition().style('stroke-width',edge);
+
+			d3.selectAll('.path').remove();
+			area_x_scale = d3.scaleLinear().range([0,linkDistance-radius*2-edge*2]).domain([0,seq_length-1]);
+			area = d3.area().x(function(d,i){return area_x_scale(i);}).y0(seq_max).y1(function(d,i){return d;});
+			path.insert("path").attr('class','path').datum(function(d){return d.seq;}).attr("d",area);
+
+			ticked();
+		});
+		
+		$('#linkDistance').change(function(){
+			linkDistance = $('#linkDistance').val();
+			forceLink.distance(linkDistance);
+
+			d3.selectAll('.path').remove();
+			area_x_scale = d3.scaleLinear().range([0,linkDistance-radius*2-edge*2]).domain([0,seq_length-1]);
+			area = d3.area().x(function(d,i){return area_x_scale(i);}).y0(seq_max).y1(function(d,i){return d;});
+			path.insert("path").attr('class','path').datum(function(d){return d.seq;}).attr("d",area);
+
+			simulation.alpha(1).restart();
+		});
+
+		$('#manyBodyStrength').change(function(){
+			manyBodyStrength = $('#manyBodyStrength').val();
+			forceManyBody.strength(manyBodyStrength);
+			simulation.alpha(1).restart();
+		});
+
+
+		// theta is degree
+		var circleCenter = function(x1,y1,x2,y2,theta){
+			var radians = theta*Math.PI/180;
+			//var d1 = (x2-Math.cos(radians)*x1+Math.sin(radians)*y1)/2,
+			//	d2 = (y2-Math.sin(radians)*x1-Math.cos(radians)*y1)/2;
+
+			var d1 = x2-Math.cos(radians)*x1+Math.sin(radians)*y1,
+				d2 = y2-Math.sin(radians)*x1-Math.cos(radians)*y1;
+
+			var x = (d1*(1-Math.cos(radians))-d2*Math.sin(radians))/(1-Math.cos(radians))/2,
+				y = (d1-x*(1-Math.cos(radians)))/Math.sin(radians);
+
+			return {'x':x,'y':y};
+		}
+
+	});
+</script>

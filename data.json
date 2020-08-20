@@ -1,0 +1,15 @@
+{
+	"nodes":[
+		{"id": "Alice"},
+  		{"id": "Bob"},
+  		{"id": "Carol"},
+  		{"id": "John"},
+  		{"id": "Kim"}
+  	],
+  	"links":[
+  		{"source": 0, "target": 1, "seq":[8,5,10,4,8,6,3,5,4,5]}, 
+  		{"source": 1, "target": 2, "seq":[8,7,10,2,2,2,4,9,2,4]},
+  		{"source": 1, "target": 4, "seq":[9,6,5,1,10,8,6,7,2,5]},
+  		{"source": 2, "target": 3, "seq":[4,10,1,5,3,8,9,3,8,6]}
+	]
+ }

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style type="text/css">
+	html body{
+		margin: 0;
+		padding: 0;
+		cursor: pointer;
+	}
+	.node {
+		fill: red;
+		fill-opacity:0.5;
+		stroke: white;
+		stroke-opacity:0.8;
+	}
+	.link {
+		stroke-width:0;
+		stroke: #33A02C;
+	}
+	#toolbar{
+		position: absolute;
+		left: 0px;
+		top: 0px;
+		z-index: 999;
+		color: #666;
+		font-size: 10px;
+	}
+	.area{
+	   fill: #33A02C;
+	   fill-opacity:0.5;
+	   stroke: #B2DF8A;
+	}
+	svg{
+		position: absolute;
+		left: 0px;
+		top: 0px;
+	}
+
+	fieldset {
+	    font-family: sans-serif;
+	    border: 2px solid #eee;
+	    background: #fff;
+	    border-radius: 2px;
+	    padding: 5px;
+	    margin: 5px 2px;
+	    opacity:0.9;
+	}
+
+	fieldset legend {
+	    background: #eee;
+	    color: #666;
+	    padding: 5px 10px ;
+	    font-size: 8px;
+	    border-radius: 5px;
+	    box-shadow: 0 0 0 2px #eee;
+	    margin-left: 5px;
+	}
+
+	fieldset label{
+		display: inline-block;
+		width: 140px;
+		text-align: right;
+	}
+
+
+    .stop-left {
+        /*stop-color: #3f51b5;  /* Indigo */
+        stop-color: #fff7ec;
+    }
+
+    .stop-right {
+        /*stop-color: #009688;  /* Teal */
+        stop-color: #7f0000;
+    }
+
+    .filled {
+        fill: url(#mainGradient);
+    }
+
+    .outlined {
+        fill:   none;
+        stroke: url(#mainGradient);
+        stroke-width: 4;
+    }
+        
+</style>
+<div id="toolbar">
+	<fieldset>
+		<legend><b>Layout Preferences</b></legend>
+		<p>
+		  <label for="nodeRadius">
+		         Node Radius :
+		  </label>
+		  <input type="number" min="0" max="100" step="1" value="10" id="nodeRadius">
+		</p>
+		<!--
+		<p>
+			<label>
+				Node Featured :
+			</label>
+			<input type="radio" name="nodeFeatured" value="On" id="nodeFeaturedOn">On
+			<input type="radio" name="nodeFeatured" value="Off" id="nodeFeaturedOff" checked>Off
+		</p>
+		-->
+		<p>
+		  <label for="nodeEdge">
+		         Node Edge :
+		  </label>
+		  <input type="number" min="0" max="100" step="1" value="2" id="nodeEdge">
+		</p>
+		<p>
+		  <label for="linkDistance">
+		         Link Distance :
+		  </label>
+		  <input type="number" min="0" max="200" step="10" value="100" id="linkDistance">
+		</p>
+		<p>
+		  <label for="linkDistance">
+		         Many Body Strength :
+		  </label>
+		  <input type="number" min="-100" max="100" step="10" value="-30" id="manyBodyStrength">
+		</p>
+	</fieldset>
+	<fieldset>
+		<legend><b>Temporal Display Preferences</b></legend>
+		<p>
+			<label for="embedType">
+				   	Embed Temporal Display :
+			</label>
+			<input type="radio" name="embedType" checked="">
+		</p>
+	</fieldset>
+</div>
+<script src="/js/jquery-3.1.1.min.js" charset="utf-8" ></script>
+<script src="/js/d3.v4.2.8.min.js" charset="utf-8" ></script>
+<script type="text/javascript">
+
+	var data = {
+			"nodes":[
+				{"id": "A"},
+		  		{"id": "B"},
+		  		{"id": "C"}
+		  	],
+		  	"links":[
+		  		{"source": 0, "target": 1, "seq":[8,5,10,4,8,6,3,5,4,5]}, 
+		  		{"source": 1, "target": 2, "seq":[8,7,10,2,2,2,4,9,2,4]},
+		  		{"source": 2, "target": 0, "seq":[9,6,5,1,10,8,6,7,2,5]}
+			]
+		 };
+	var default_radius = 10;
+	var default_edge = 2;
+	var default_link_distance = 100;
+	
+	$(function(){
+		var width = $(window).width();
+		var height = $(window).height();
+		var seq_max = 10;
+		var seq_length = 10;
+
+		$('#nodeRadius').val(default_radius);
+		$('#nodeEdge').val(default_edge);
+		$('#linkDistance').val(default_link_distance);
+
+		var radius = $('#nodeRadius').val();
+		var edge = $('#nodeEdge').val();
+		var linkDistance = $('#linkDistance').val();
+		var manyBodyStrength = $('#manyBodyStrength').val();
+
+		var svg = d3.select("body").append("svg").attr("width",width).attr("height",height);
+		
+		var svgDefs = svg.append('defs');
+
+            var mainGradient = svgDefs.append('linearGradient')
+                .attr('id', 'mainGradient');
+
+            // Create the stops of the main gradient. Each stop will be assigned
+            // a class to style the stop using CSS.
+            mainGradient.append('stop')
+                .attr('class', 'stop-left')
+                .attr('offset', '0');
+
+            mainGradient.append('stop')
+                .attr('class', 'stop-right')
+                .attr('offset', '1');
+
+		var nodes;
+		var labels;
+		var links;
+		var path;
+		var json;
+		var paths;
+		var area_x_scale;
+		var area;
+		var simulation = d3.forceSimulation();
+		var forceLink = d3.forceLink();
+		forceLink.distance(function(d){
+			return linkDistance;
+		});
+		var forceCenter = d3.forceCenter(width/2,height/2);
+		var forceManyBody = d3.forceManyBody(manyBodyStrength);
+		
+		var innerLinePostion = function(d){
+			var x1 = d.source.x,
+				y1 = d.source.y,
+				x2 = d.target.x,
+				y2 = d.target.y,
+				l  = Math.sqrt(Math.pow(y2-y1,2)+Math.pow(x2-x1,2));
+				l_  = radius/1 + edge/1;
+			var x1_ = x1 + l_*(x2-x1)/l,
+				y1_ = y1 + l_*(y2-y1)/l,
+				x2_ = x2 + l_*(x1-x2)/l,
+				y2_ = y2 + l_*(y1-y2)/l;
+			return [x1_,y1_,x2_,y2_];
+		};
+
+		var ticked = function(){
+			
+				nodes.attr("cx", function(d) { return d.x; })
+    				.attr("cy", function(d) { return d.y; });
+    			labels.attr('dx',function(d){return d.x-5;}).attr('dy',function(d){return d.y+6;})
+				
+				links.attr('x', 0)
+	                .attr('y', 0)
+	                .attr('width', function(d){
+	                	var p = innerLinePostion(d);
+	                	var x1 = p[0],
+							y1 = p[1],
+							x2 = p[2],
+							y2 = p[3];
+	                	return Math.sqrt(Math.pow(y2-y1,2)+Math.pow(x2-x1,2));
+	                })
+	                .attr('height', 4)
+	                .attr('transform',function(d){
+						var p = innerLinePostion(d);
+						var x1 = p[0],
+							y1 = p[1],
+							x2 = p[2],
+							y2 = p[3];
+						var degree = Math.atan2(y2-y1,x2-x1)*180/Math.PI;
+						return 'translate('+x1+','+y1+')rotate('+degree+')';
+	                });
+
+				
+
+			    path.attr("transform",function(d,i){
+			      var source = d.source;
+			      var target = d.target;
+
+			      var radians = Math.atan2(-(target.y-source.y),(target.x-source.x));
+			      var degrees = radians * 180/Math.PI; 
+			      //return d3.svg.transform().translate(d.source.x+Math.cos(radians)*nodeRadius,d.source.y-nodeRadius-Math.sin(radians)*nodeRadius).rotate(-degrees)();
+			      return 'translate('+source.x+','+source.y+') rotate('+-degrees+') translate('+(radius/1+edge/1)+','+(-seq_max-2)+')';
+			    });
+			
+		};
+
+		
+		json = data;
+		$.each(data.nodes,function(index_node,item_node){
+			item_node.size = 0;
+			$.each(data.links,function(index_link,item_link){
+				if(item_link.source === index_node){
+					$.each(item_link.seq,function(index,item){
+						item_node.size+= item/1;
+					});
+				}
+			});
+		});
+		nodes = svg.selectAll(".node").data(data.nodes).enter().insert("circle","svg").attr("class","node").attr("r",radius).style('stroke-width',edge/1)
+			.on('mouseover',function(d,i){
+				d3.select(this).style('stroke',"blue");
+			}).on('mouseout',function(d,i){
+				d3.select(this).style('stroke',"white");
+			});
+		labels = svg.selectAll('.label').data(data.nodes).enter().append('text').text(function(d,i){return d.id;});
+		links = svg.selectAll(".link").data(data.links).enter().insert("rect").attr("class","link")
+					.classed('filled', true);
+		area_x_scale = d3.scaleLinear().range([0,linkDistance-radius*2-edge*2]).domain([0,seq_length-1]);
+		//area = d3.area().x(function(d,i){return area_x_scale(i);}).y0(seq_max).y1(function(d,i){return seq_max-d;});
+			
+
+		simulation.nodes(data.nodes);
+		simulation.force("charge", forceManyBody)
+				  .force("link",forceLink)
+				  .force("center", forceCenter);
+		forceLink.links(data.links);
+
+		path = svg.selectAll(".area").data(data.links).enter().insert("g",".line")
+				       .attr("class","area");
+		path.insert("path").attr('class','path').datum(function(d){return d.seq;}).attr("d",area);
+
+		simulation.on("tick",ticked);
+		
+
+		$(window).resize(function(){
+			width = $(window).width();
+			height = $(window).height();
+			svg.attr("width",width).attr("height",height);
+			forceCenter.x(width/2);
+			forceCenter.y(height/2);
+			simulation.restart();
+		});
+
+		$('#nodeRadius').change(function(){
+			radius = $('#nodeRadius').val();
+			nodes.transition().attr('r',radius);
+
+			d3.selectAll('.path').remove();
+			area_x_scale = d3.scaleLinear().range([0,linkDistance-radius*2-edge*2]).domain([0,seq_length-1]);
+			area = d3.area().x(function(d,i){return area_x_scale(i);}).y0(seq_max).y1(function(d,i){return d;});
+			path.insert("path").attr('class','path').datum(function(d){return d.seq;}).attr("d",area);
+
+			ticked();
+		});
+
+		$('#nodeEdge').change(function(){
+			edge = $('#nodeEdge').val();
+			nodes.transition().style('stroke-width',edge);
+
+			d3.selectAll('.path').remove();
+			area_x_scale = d3.scaleLinear().range([0,linkDistance-radius*2-edge*2]).domain([0,seq_length-1]);
+			area = d3.area().x(function(d,i){return area_x_scale(i);}).y0(seq_max).y1(function(d,i){return d;});
+			path.insert("path").attr('class','path').datum(function(d){return d.seq;}).attr("d",area);
+
+			ticked();
+		});
+		
+		$('#linkDistance').change(function(){
+			linkDistance = $('#linkDistance').val();
+			forceLink.distance(linkDistance);
+
+			d3.selectAll('.path').remove();
+			area_x_scale = d3.scaleLinear().range([0,linkDistance-radius*2-edge*2]).domain([0,seq_length-1]);
+			area = d3.area().x(function(d,i){return area_x_scale(i);}).y0(seq_max).y1(function(d,i){return d;});
+			path.insert("path").attr('class','path').datum(function(d){return d.seq;}).attr("d",area);
+
+			simulation.alpha(1).restart();
+		});
+
+		$('#manyBodyStrength').change(function(){
+			manyBodyStrength = $('#manyBodyStrength').val();
+			forceManyBody.strength(manyBodyStrength);
+			simulation.alpha(1).restart();
+		});
+
+	});
+</script>

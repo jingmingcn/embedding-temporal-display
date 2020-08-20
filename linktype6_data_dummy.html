@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style type="text/css">
+	html body{
+		margin: 0;
+		padding: 0;
+		cursor: pointer;
+		background-color:#f0f0f0;
+	}
+	.node {
+		fill: red;
+		fill-opacity:0.5;
+		stroke: white;
+		stroke-opacity:0.8;
+	}
+	.link {
+		stroke-width:2px;
+		stroke: #33A02C;
+		fill: none;
+	}
+	
+	.area, .area2{
+	   fill-opacity:0.8;
+	   stroke: #fff;
+	   stroke-width:1px;
+	}
+	svg{
+		position: absolute;
+		left: 0px;
+		top: 0px;
+	}
+
+	.label{
+		font-size: 8px;
+		color: #666;
+	}
+
+	.cell{
+		fill-opacity:0.1;
+		stroke: #999;
+	   	stroke-width:1px;
+	}
+</style>
+
+<script src="/js/jquery-3.1.1.min.js" charset="utf-8" ></script>
+<script src="/js/d3.v4.js" charset="utf-8" ></script>
+<script src="/js/d3-scale-chromatic.v1.min.js" charset="utf-8" ></script>
+<script type="text/javascript" src="/js/dat.gui.js"></script>
+<script type="text/javascript" src="/js/netClustering.js"></script>
+<script type="text/javascript" src="linktype6_data_dummy.js"></script>

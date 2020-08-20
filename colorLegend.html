@@ -1,0 +1,28 @@
+<body>
+	<svg></svg>
+	<script type="text/javascript" src="/js/d3.v4.js" charset="utf-8" ></script>
+	<script type="text/javascript" src="/js/d3-legend.min.js"  charset="utf-8"></script>	
+	<script type="text/javascript" src="/js/colorbrewer.js"></script>
+	<script>
+
+var svg = d3.select("svg").attr('width',document.documentElement.clientWidth)
+						.attr('height',document.documentElement.clientHeight);
+
+var ordinal = d3.scaleOrdinal()
+  .domain(d3.range(0,11))
+  .range(colorbrewer.Reds[9]);
+
+svg.append("g")
+  .attr("class", "legendOrdinal")
+  .attr("transform", "translate(20,20)");
+
+var legendOrdinal = d3.legendColor()
+  .scale(ordinal);
+
+svg.select(".legendOrdinal")
+  .call(legendOrdinal);
+
+
+
+	</script>
+</body>

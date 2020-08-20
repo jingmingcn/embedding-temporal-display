@@ -1,0 +1,30 @@
+<body>
+	<svg></svg>
+	<script type="text/javascript" src="/js/d3.v4.js" charset="utf-8" ></script>
+	<script type="text/javascript" src="/js/d3-legend.min.js"  charset="utf-8"></script>	
+	<script type="text/javascript" src="/js/d3-scale-chromatic.v1.min.js"></script>
+	<script>
+
+var sequentialScale = d3.scaleSequential(d3.interpolateReds)
+  .domain([0,10]);
+
+var svg = d3.select("svg").attr('width',document.documentElement.clientWidth)
+						.attr('height',document.documentElement.clientHeight);
+
+svg.append("g")
+  .attr("class", "legendSequential")
+  .attr("transform", "translate(20,20)");
+
+var legendSequential = d3.legendColor()
+    .shapeWidth(30)
+    .cells(11)
+    .orient("horizontal")
+    .scale(sequentialScale) 
+
+svg.select(".legendSequential")
+  .call(legendSequential);
+
+
+
+	</script>
+</body>
